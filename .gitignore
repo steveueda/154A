@@ -1,0 +1,7 @@
+# MATLAB autosave
+*.asv
+
+# Generated outputs
+outputs/
+*.mat
+*.fig
