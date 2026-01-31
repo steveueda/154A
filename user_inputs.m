@@ -33,31 +33,49 @@ geom.sweep_w_deg = 0;      % Wing sweep at quarter chord (deg)
 geom.wing_xmc = 0.30;      % Wing max thickness location (fraction of chord)
 
 % Tail parameters
-geom.Sh_m2 = 0.10;         % Horizontal tail area (m^2)
+geom.Sh_m2 = 0.035;         % Horizontal tail area (m^2)
 geom.ARh = 4.0;            % Horizontal tail aspect ratio
 geom.tc_h = 0.10;          % Horizontal tail thickness to chord ratio
 geom.htail_xmc = 0.30;     % Horizontal tail max thickness location (fraction of chord)
 geom.htail_sweep_deg = 0;  % Horizontal tail sweep (deg)
-geom.Sv_m2 = 0.08;         % Vertical tail area (m^2)
+geom.Sv_m2 = 0.020;         % Vertical tail area (m^2)
 geom.ARv = 1.8;            % Vertical tail aspect ratio
 geom.tc_v = 0.10;          % Vertical tail thickness to chord ratio
 
-
 %% Propulsion Assumptions
+% Propulsion type: 'gas' or 'electric'
+prop.type = 'electric';                 % 'gas' for gasoline engine, 'electric' for electric motor
+
+% Common parameters
 prop.eta_prop = 0.8;               % Propeller efficiency
-prop.P_shaft_max_W = 1000;         % Maximum shaft power (W)
+prop.P_shaft_max_W = 375;          % Maximum shaft power (W)
+
+% Gas engine parameters (used when prop.type = 'gas')
 prop.BSFC_g_per_kWh = 500;         % Brake specific fuel consumption (g/kWh)
 prop.fuel_density_kg_per_L = 0.74; % Fuel density (kg/L)
 
-% Fuel margins
-prop.reserve_frac = 0.15;          % Reserve fuel fraction
-prop.tank_margin_frac = 0.10;      % Tank sizing margin
+% Electric motor parameters (used when prop.type = 'electric')
+prop.battery_energy_density_Wh_per_kg = 200;  % Battery energy density (Wh/kg) - typical LiPo: 150-250 Wh/kg
+prop.battery_efficiency = 0.95;    % Battery discharge efficiency
+prop.motor_controller_efficiency = 0.95;  % Motor controller efficiency
+prop.eta_electric = prop.battery_efficiency * prop.motor_controller_efficiency;  % Overall electric efficiency
+
+% Energy margins (applies to both gas and electric)
+prop.reserve_frac = 0.1;          % Reserve energy fraction (10% reserve)
+prop.tank_margin_frac = 0.10;      % Tank/battery sizing margin (10% margin)
 
 %% Fixed Masses
-mass.engine_mass_kg = 2.1;
-mass.avionics_mass_kg = 0.45;
-mass.landing_gear_mass_kg = 0.70;
-mass.fuel_system_mass_kg = 0.20;
+% Set masses based on propulsion type
+if strcmpi(prop.type, 'electric')
+    mass.engine_mass_kg = 0.31;  % Electric motor + controller (Motor is 0.235 kg, controller is approx 0.075 kg)
+    mass.fuel_system_mass_kg = 0.15 * 0.40;  % Battery management system, wiring, cooling 
+else
+    mass.engine_mass_kg = 2.1;  % Gas engine
+    mass.fuel_system_mass_kg = 0.20 * 0.40;  % Fuel system (pump, lines, etc.) 
+end
+
+mass.avionics_mass_kg = 0.3;  
+mass.landing_gear_mass_kg = 0.0; % I set at zero for now as Josh suggested we dont need one
 
 mass.W0_N = 216.7;         % Initial gross weight guess (N)
 mass.n_ult = 5.7;          % Ultimate load factor
@@ -74,13 +92,25 @@ stab.SM_min = 0.08;        % Minimum acceptable static margin
 stab.SM_max = 0.15;        % Maximum acceptable static margin 
 
 %% Component Locations for CG Analysis
-% x = 0 at wing leading edge (m)
-cg.payload_x_m = 0.30;
-cg.engine_x_m = 0.10;
-cg.avionics_x_m = 0.25;
-cg.landing_gear_x_m = 0.15;
-cg.fuel_x_m = 0.22;        % Fuel CG location (m from wing LE)
-cg.fuel_system_x_m = 0.20;
+% x = 0 at front tip of plane (m)
+cg.wing_LE_from_front_m = 0.40;  % Distance from front tip to wing leading edge (m)
+cg.payload_x_m = 0.535;        % Payload CG location (m) at the cg pretty much so that cg doesnt change when dropped
+cg.engine_x_m = 0.1;         % Engine/motor CG location (m) at the front of the plane 
+cg.battery_x_m = 0.48;        % Battery CG location (m) near the cg beccause heavy
+cg.avionics_x_m = 1.1;       % Avionics CG location (m) towards the back
+cg.landing_gear_x_m = 0;   % Landing gear CG location (m) (Not used)
+cg.fuel_x_m = 0.62;           % Gas fuel tank CG location (m) (not used for electric)
+cg.fuel_system_x_m = 0.60;    % Fuel system/BMS CG location (m) (not used for electric)
+
+%% Weight Correction Factors
+% Correction factors for Niccolai weight estimates (applied to calculated weights only)
+% User input values (avionics, fuel_system, payload, battery) are already corrected in their definitions
+k_corr.wing        = 2.00;
+k_corr.fuselage    = 1.25;
+k_corr.htail       = 0.70;
+k_corr.vtail       = 0.60;
+k_corr.controls    = 0.11;
+k_corr.prop_install = 0.55;
 
 %% Analysis Controls
 % Iteration settings
@@ -88,8 +118,30 @@ ctrl.max_iter = 8;
 ctrl.tol_frac = 0.01;      % 1% relative convergence tolerance
 
 % Velocity sweep for performance analysis
-ctrl.Vmin = 10;            % m/s
-ctrl.Vmax = 45;            % m/s
-ctrl.N_sweep = 30;         % Number of velocity points
+ctrl.V_min_fraction = 0.4;  % Minimum velocity as fraction of stall speed (e.g., 0.4 = 40% of stall)
+ctrl.V_max_fraction = 1.15;  % Maximum velocity as fraction of cruise speed (e.g., 2.0 = 200% of cruise)
+
+% Plot x-axis limits (as fraction of velocity range)
+ctrl.power_plot_xlim_low = 0;   % Power plot lower limit (0.85 = 15% below min velocity)
+ctrl.power_plot_xlim_high = 1.1;   % Power plot upper limit (1.1 = 10% beyond max velocity)
+ctrl.drag_plot_xlim_low = 1;    % Drag plot lower limit (0.85 = 15% below min velocity)
+ctrl.drag_plot_xlim_high = 1.1;    % Drag plot upper limit (1.1 = 10% beyond max velocity)
+
+% Velocity label positions (NaN = use relative offset from marker, otherwise use absolute coordinates)
+% Power vs. Velocity plot labels
+ctrl.label_power.v_stall_x = 17;      % x-coordinate (m/s) for v_stall label (NaN = relative offset)
+ctrl.label_power.v_stall_y = NaN;      % y-coordinate (W) for v_stall label (NaN = relative offset)
+ctrl.label_power.v_minpower_x = 12;   % x-coordinate (m/s) for v_minpower label (NaN = relative offset)
+ctrl.label_power.v_minpower_y = 76;    % y-coordinate (W) for v_minpower label
+ctrl.label_power.v_range_x = 20.3;       % x-coordinate (m/s) for v_range label
+ctrl.label_power.v_range_y = NaN;      % y-coordinate (W) for v_range label (NaN = relative offset)
+ctrl.label_power.v_max_x = NaN;        % x-coordinate (m/s) for v_max label (NaN = relative offset)
+ctrl.label_power.v_max_y = NaN;        % y-coordinate (W) for v_max label (NaN = relative offset)
+
+% Drag vs. Velocity plot labels
+ctrl.label_drag.v_mindrag_x = 20.2;     % x-coordinate (m/s) for v_mindrag label (NaN = relative offset)
+ctrl.label_drag.v_mindrag_y = 4.7;     % y-coordinate (N) for v_mindrag label (NaN = relative offset)
+ctrl.label_drag.v_stall_x = 18;       % x-coordinate (m/s) for v_stall label (NaN = relative offset)
+ctrl.label_drag.v_stall_y = 4.2;       % y-coordinate (N) for v_stall label (NaN = relative offset)
 
 

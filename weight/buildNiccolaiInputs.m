@@ -1,7 +1,10 @@
 function nicIn = buildNiccolaiInputs(geomSI, W_guess_N, engine_mass_kg)
-% Converts SI geometry and weight to US customary units for Niccolai weight estimation
 
 conv = unit_conversions();
+inches_per_ft = 12;
+tail_arm_fraction = 0.5;
+aerodynamic_center_fraction = 0.25;
+num_engines = 1;
 
 nicIn.W = W_guess_N * conv.lb_per_N;
 nicIn.N = geomSI.n_ult;
@@ -18,16 +21,16 @@ nicIn.Sh = geomSI.Sh_m2 * conv.ft2_per_m2;
 nicIn.ARh = geomSI.ARh;
 nicIn.bh = sqrt(geomSI.Sh_m2 * geomSI.ARh) * conv.ft_per_m;
 nicIn.ch = sqrt(geomSI.Sh_m2 / geomSI.ARh) * conv.ft_per_m;
-nicIn.thr = nicIn.ch * geomSI.tc_h * 12;
+nicIn.thr = nicIn.ch * geomSI.tc_h * inches_per_ft;
 nicIn.c = sqrt(geomSI.Sref_m2 / geomSI.ARw) * conv.ft_per_m;
-nicIn.lh = 0.5 * geomSI.lf_m * conv.ft_per_m;
-nicIn.hac = 0.25;
+nicIn.lh = tail_arm_fraction * geomSI.lf_m * conv.ft_per_m;
+nicIn.hac = aerodynamic_center_fraction;
 nicIn.Sv = geomSI.Sv_m2 * conv.ft2_per_m2;
 nicIn.ARv = geomSI.ARv;
 nicIn.bv = sqrt(geomSI.Sv_m2 * geomSI.ARv) * conv.ft_per_m;
 nicIn.cv = sqrt(geomSI.Sv_m2 / geomSI.ARv) * conv.ft_per_m;
-nicIn.tvr = nicIn.cv * geomSI.tc_v * 12;
+nicIn.tvr = nicIn.cv * geomSI.tc_v * inches_per_ft;
 nicIn.Weng = engine_mass_kg * conv.lb_per_kg;
-nicIn.Neng = 1;
+nicIn.Neng = num_engines;
 
 end
